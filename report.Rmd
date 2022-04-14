@@ -1,0 +1,233 @@
+---
+title: "Relationship between the Federal Funds Rate and 10 Year Treasury Yields"
+author: "Sean Cannon"
+date: "`r format(Sys.Date(),'%B %d, %Y')`"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: no
+    fig_caption: yes
+    theme: sandstone
+    toc_float: no
+  pdf_document:
+    toc: no
+---
+<style type="text/css">
+h1.title {
+  text-align: center;
+  padding-bottom: 16px;
+  padding-top: 16px;
+}
+h4.author {
+  text-align: center;
+}
+h4.date {
+  text-align: center;
+}
+</style>
+
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+graphics.off()
+# ECHO, MESSAGE, AND WARNING = FALSE for final knit
+knitr::opts_chunk$set(echo = TRUE,
+                      message = TRUE,
+                      warning = TRUE)
+```
+
+```{r packages, message=FALSE, warning=FALSE}
+require(fpp3)
+require(tsibble)
+require(tidyverse)
+require(tidyquant)
+require(kableExtra)
+```
+
+<br>
+<h3>Abstract</h3>
+<br>
+
+Write the abstract here. Include at the end: The report is also posted online [here](https://scannon2k.github.io/projects.html).
+
+
+---
+
+
+<br>
+<h3>Introduction</h3>
+<br>
+
+Write the introduction here.
+
+
+---
+
+
+```{r data}
+# Vector of variables to be gathered:
+vars <- c("FEDFUNDS","GS10")
+
+# Use tidyquant function tq_get to gather economic data from FRED and format as a tsibble
+fred_data <- tq_get(vars,
+                    get = "economic.data",
+                    from = "1955-01-01") %>%
+  mutate(Month = yearmonth(date), value = price) %>%
+  select(-c(date, price)) %>%
+  as_tsibble(index = Month, key = symbol)
+
+# Pivot the data to be in a more conventional wide format
+fred_dataw <- fred_data %>%
+  pivot_wider(names_from = symbol, values_from = value) %>%
+  as_tsibble()
+
+# Use facet grid to visualize raw data for variables
+fred_data %>%
+  ggplot(aes(x = Month, y = value)) +
+  geom_line() +
+  facet_grid(vars(symbol), scales = "free_y") +
+  labs(y = "Percent")
+
+# Transform variables
+# tdata <- fred_dataw %>% select(c(FEDFUNDS,GS10)) %>%
+#   mutate(infl = 1200*log(PCEPI/lag(PCEPI))) %>%                           # transformed inflation
+#   mutate(dinfl = infl - lag(infl,1)) %>%                                  # differenced inflation
+#   mutate(dinfl12 = 100*log(PCEPI/lag(PCEPI,12)) - lag(infl,12)) %>%       # differenced inflation 12
+#   mutate(unrate = UNRATE - lag(UNRATE)) %>%                               # differenced unrate
+#   mutate(expinf1yr = EXPINF1YR - lag(EXPINF1YR)) %>%                      # differenced expected inf
+#   mutate(mich = MICH - lag(MICH)) %>%                                     # differenced mich
+#   mutate(indpro = 1200*log(INDPRO/lag(INDPRO))) %>%                       # transformed indpro
+#   # keep only transformed variables
+#   select(-c(PCEPI, UNRATE, EXPINF1YR, MICH, INDPRO)) %>%
+#   drop_na()
+
+# Compare ACF plots before and after transformation
+# fred_dataw %>% ACF(MICH) %>%
+#   autoplot()
+# tdata %>% ACF(mich) %>%
+#   autoplot()
+
+# Observe the plots of the transformed variables
+# tdatam <- melt(tdata, "Month")
+# ggplot(tdatam, aes(Month, value)) + 
+#   geom_line() + 
+#   facet_wrap(~variable, scales = "free", ncol = 2)
+```
+
+
+<br>
+<h3>Data and Variables</h3>
+<br>
+
+The data used in this analysis was gathered from the Federal Reserve’s online database (FRED), and the time series spans from January 1955 to March 2022. The table below shows a list of the variables used and their attributes.
+
+
+```{r data_table}
+# Define description and units vectors for the table
+desc <- c("Federal Funds Effective Rate","Market Yield on U.S. Treasury Securities at 10-Year Constant Maturity")
+units <- c("Percent, Not Seasonally Adjusted","Percent, Not Seasonally Adjusted")
+
+# Create dataframe for kable function
+table_data <- data.frame(vars, desc, units)
+
+# Table displaying variables, description, and units
+kbl(table_data, col.names = c("Variables", "Description", "Units"), align = "lll") %>%
+  kable_styling(bootstrap_options = c("bordered", "hover"))
+```
+<br>
+
+Write about the data and variables here.
+
+
+---
+
+
+```{r fit_models}
+# Fit the models
+```
+
+
+<br>
+<h3>Models</h3>
+<br>
+
+
+Talk about the models here.
+
+<br>
+<center>$\pi^{12}_{t}−\pi_{t−12}=\phi+\beta(B)\Delta\pi_{t−12}+\gamma(B)u_{t−12}+\varepsilon_t$</center>
+<br>
+
+Keep talking about the models here ($\bar{\pi}$).
+
+<br>
+<center>$me=(m1+m2+m3+m4)/4$</center>
+<br>
+
+---
+
+
+```{r forecast_accuracy}
+# Create the forecast using the combination model
+```
+
+
+<br>
+<h3>Estimation and Results</h3>
+<br>
+
+Write about the results here.
+
+
+```{r forecast_plot, fig.align='center'}
+#Plot the estimated models
+
+```
+<br>
+
+Keep writing about the results with latek maybe.
+
+<br>
+<center>$MAPE = mean(\left| p_t \right|)$</center>
+<br>
+<center>where, $p_t=100e_t/y_t$</center>
+
+
+```{r insample_acc}
+# Create a table to display in-sample accuracy between models
+
+```
+<br>
+
+Results and tables etc.
+
+
+```{r outsample_acc}
+# Create a table to display out-of-sample accuracy between models
+
+```
+<br>
+
+Closing findings.
+
+
+---
+
+
+<br>
+<h3>Conclusion</h3>
+<br>
+
+Write about the conclusion here.
+
+
+---
+
+
+<br>
+<h3>References</h3>
+<br>
+Hyndman, Rob J. “Forecasting: Principles&nbsp;and&nbsp;Practice (3rd Ed).” OTexts. Accessed April 10, 2022. https://otexts.com/fpp3/.
+<br><br>
