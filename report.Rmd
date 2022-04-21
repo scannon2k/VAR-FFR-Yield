@@ -137,6 +137,27 @@ tmp <- VARselect(zdata,lag.max=12,type="const")
 tmp
 ```
 
+```{r}
+p <- 1
+
+var.rate <- VAR(zdata,p=p,type="const")
+summary(var.rate)
+```
+
+```{r}
+cat("H0: gFEDFUNDS does not cause gGS10,  H1: it does \n")
+grangertest(gFEDFUNDS ~ gGS10,order=p,data=zdata)
+```
+
+```{r}
+cat("H0: gGS10 does not cause gFEDFUNDS,  H1: it does \n")
+grangertest(gGS10 ~ gFEDFUNDS,order=p,data=zdata)
+```
+
+```{r}
+plot(irf(var.rate, n.ahead = 6, boot = TRUE))
+```
+
 
 <br>
 <h3>Data and Variables</h3>
