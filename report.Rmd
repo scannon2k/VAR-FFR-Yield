@@ -44,6 +44,9 @@ require(tsibble)
 require(tidyverse)
 require(tidyquant)
 require(kableExtra)
+require(timetk)
+require(vars)
+require(lmtest)
 ```
 
 <br>
@@ -90,6 +93,12 @@ fred_data %>%
   facet_grid(vars(symbol), scales = "free_y") +
   labs(y = "Percent")
 
+# Check for a unit root: Both variables have a unit root
+# fred_data %>% 
+#   features(value, unitroot_ndiffs) %>% 
+#   kable(format = "html", table.attr = "style='width:30%;' ") %>% 
+#   kableExtra::kable_styling()
+
 # Transform variables
 # tdata <- fred_dataw %>% select(c(FEDFUNDS,GS10)) %>%
 #   mutate(infl = 1200*log(PCEPI/lag(PCEPI))) %>%                           # transformed inflation
@@ -114,6 +123,18 @@ fred_data %>%
 # ggplot(tdatam, aes(Month, value)) + 
 #   geom_line() + 
 #   facet_wrap(~variable, scales = "free", ncol = 2)
+```
+
+```{r}
+Zdata <- fred_dataw %>%
+  mutate(gFEDFUNDS = difference(log(FEDFUNDS)),
+         gGS10 = difference(log(GS10))) %>%
+  dplyr::select(gFEDFUNDS, gGS10) %>% 
+  tidyr::drop_na()
+zdata <- as.ts(Zdata, start = c(1955, 1), frequency = 12)
+
+tmp <- VARselect(zdata,lag.max=12,type="const")
+tmp
 ```
 
 
