@@ -1,5 +1,5 @@
 ---
-title: "Relationship between the Federal Funds Rate and 10 Year Treasury Yields"
+title: "Relationship between the Federal Funds Rate and Inflation"
 author: "Sean Cannon"
 date: "`r format(Sys.Date(),'%B %d, %Y')`"
 output:
@@ -47,6 +47,7 @@ require(kableExtra)
 require(timetk)
 require(vars)
 require(lmtest)
+require(reshape2)
 ```
 
 <br>
@@ -71,14 +72,14 @@ Write the introduction here.
 
 ```{r data}
 # Vector of variables to be gathered:
-vars <- c("FEDFUNDS","GS10")
+vars <- c("FEDFUNDS","PCEPI")
 
 # Use tidyquant function tq_get to gather economic data from FRED and format as a tsibble
 fred_data <- tq_get(vars,
                     get = "economic.data",
-                    from = "1955-01-01") %>%
+                    from = "1960-01-01") %>%
   mutate(Month = yearmonth(date), value = price) %>%
-  select(-c(date, price)) %>%
+  dplyr::select(-c(date, price)) %>%
   as_tsibble(index = Month, key = symbol)
 
 # Pivot the data to be in a more conventional wide format
@@ -94,64 +95,55 @@ fred_data %>%
   labs(y = "Percent")
 
 # Check for a unit root: Both variables have a unit root
-# fred_data %>% 
-#   features(value, unitroot_ndiffs) %>% 
-#   kable(format = "html", table.attr = "style='width:30%;' ") %>% 
-#   kableExtra::kable_styling()
-
-# Transform variables
-# tdata <- fred_dataw %>% select(c(FEDFUNDS,GS10)) %>%
-#   mutate(infl = 1200*log(PCEPI/lag(PCEPI))) %>%                           # transformed inflation
-#   mutate(dinfl = infl - lag(infl,1)) %>%                                  # differenced inflation
-#   mutate(dinfl12 = 100*log(PCEPI/lag(PCEPI,12)) - lag(infl,12)) %>%       # differenced inflation 12
-#   mutate(unrate = UNRATE - lag(UNRATE)) %>%                               # differenced unrate
-#   mutate(expinf1yr = EXPINF1YR - lag(EXPINF1YR)) %>%                      # differenced expected inf
-#   mutate(mich = MICH - lag(MICH)) %>%                                     # differenced mich
-#   mutate(indpro = 1200*log(INDPRO/lag(INDPRO))) %>%                       # transformed indpro
-#   # keep only transformed variables
-#   select(-c(PCEPI, UNRATE, EXPINF1YR, MICH, INDPRO)) %>%
-#   drop_na()
-
-# Compare ACF plots before and after transformation
-# fred_dataw %>% ACF(MICH) %>%
-#   autoplot()
-# tdata %>% ACF(mich) %>%
-#   autoplot()
-
-# Observe the plots of the transformed variables
-# tdatam <- melt(tdata, "Month")
-# ggplot(tdatam, aes(Month, value)) + 
-#   geom_line() + 
-#   facet_wrap(~variable, scales = "free", ncol = 2)
+fred_data %>%
+  features(value, unitroot_ndiffs) %>%
+  kable(format = "html", table.attr = "style='width:30%;' ") %>%
+  kableExtra::kable_styling()
 ```
 
 ```{r}
-Zdata <- fred_dataw %>%
-  mutate(gFEDFUNDS = difference(log(FEDFUNDS)),
-         gGS10 = difference(log(GS10))) %>%
-  dplyr::select(gFEDFUNDS, gGS10) %>% 
+# Transform variables to be I(0)
+ndata <- fred_dataw %>% dplyr::select(c(FEDFUNDS,PCEPI)) %>%
+  mutate(infl = 1200*log(PCEPI/lag(PCEPI))) %>%              # in percent/month
+  mutate(dinfl = infl - lag(infl,1)) %>%                     # differenced inflation
+  mutate(fedfunds = FEDFUNDS - lag(FEDFUNDS)) %>%            # differenced fedfunds
+  dplyr::select(dinfl, fedfunds) %>% 
   tidyr::drop_na()
-zdata <- as.ts(Zdata, start = c(1955, 1), frequency = 12)
+
+zdata <- as.ts(ndata, start = c(1960, 1), frequency = 12)
 
 tmp <- VARselect(zdata,lag.max=12,type="const")
+p <- tmp$selection[2]
 tmp
 ```
 
 ```{r}
-p <- 1
+# Observe the plots of the transformed variables
+ndatam <- melt(ndata, "Month")
+ggplot(ndatam, aes(Month, value)) +
+  geom_line() +
+  facet_wrap(~variable, scales = "free", ncol = 2)
 
+# Compare ACF plots before and after transformation
+fred_dataw %>% ACF(FEDFUNDS) %>%
+  autoplot()
+ndata %>% ACF(fedfunds) %>%
+  autoplot()
+```
+
+```{r}
 var.rate <- VAR(zdata,p=p,type="const")
 summary(var.rate)
 ```
 
 ```{r}
-cat("H0: gFEDFUNDS does not cause gGS10,  H1: it does \n")
-grangertest(gFEDFUNDS ~ gGS10,order=p,data=zdata)
+cat("H0: fedfunds does not cause dinfl,  H1: it does \n")
+grangertest(fedfunds ~ dinfl,order=p,data=zdata)
 ```
 
 ```{r}
-cat("H0: gGS10 does not cause gFEDFUNDS,  H1: it does \n")
-grangertest(gGS10 ~ gFEDFUNDS,order=p,data=zdata)
+cat("H0: dinfl does not cause fedfunds,  H1: it does \n")
+grangertest(dinfl ~ fedfunds,order=p,data=zdata)
 ```
 
 ```{r}
@@ -181,7 +173,6 @@ kbl(table_data, col.names = c("Variables", "Description", "Units"), align = "lll
 <br>
 
 Write about the data and variables here.
-
 
 ---
 
