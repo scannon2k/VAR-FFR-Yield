@@ -1,5 +1,6 @@
 ---
-title: "Relationship between the Federal Funds Rate and Inflation"
+title: "VECM approach to interest rates"
+subtitle: "Do short term rates lead long term rates?"
 author: "Sean Cannon"
 date: "`r format(Sys.Date(),'%B %d, %Y')`"
 output:
@@ -13,19 +14,6 @@ output:
   pdf_document:
     toc: no
 ---
-<style type="text/css">
-h1.title {
-  text-align: center;
-  padding-bottom: 16px;
-  padding-top: 16px;
-}
-h4.author {
-  text-align: center;
-}
-h4.date {
-  text-align: center;
-}
-</style>
 
 ---
 
@@ -48,6 +36,9 @@ require(timetk)
 require(vars)
 require(lmtest)
 require(reshape2)
+require(urca)
+require(stargazer)
+require(tsDyn)
 ```
 
 <br>
@@ -65,102 +56,51 @@ Write the abstract here. Include at the end: The report is also posted online [h
 <br>
 
 Write the introduction here.
-
-
----
-
-
+<center>
 ```{r data}
 # Vector of variables to be gathered:
-vars <- c("FEDFUNDS","PCEPI")
+vars <- c("GS2","GS10")
 
 # Use tidyquant function tq_get to gather economic data from FRED and format as a tsibble
 fred_data <- tq_get(vars,
                     get = "economic.data",
-                    from = "1960-01-01") %>%
-  mutate(Month = yearmonth(date), value = price) %>%
-  dplyr::select(-c(date, price)) %>%
-  as_tsibble(index = Month, key = symbol)
+                    from = "1977-01-01")
 
 # Pivot the data to be in a more conventional wide format
 fred_dataw <- fred_data %>%
-  pivot_wider(names_from = symbol, values_from = value) %>%
-  as_tsibble()
+  pivot_wider(names_from = symbol, values_from = price) %>%
+  tidyr::drop_na() %>%
+  as_tsibble(index = date) %>%
+  mutate(gs2 = `GS2`, gs10 = `GS10`) %>%
+  dplyr::select(-c(`GS2`, `GS10`))
 
-# Use facet grid to visualize raw data for variables
-fred_data %>%
-  ggplot(aes(x = Month, y = value)) +
-  geom_line() +
-  facet_grid(vars(symbol), scales = "free_y") +
-  labs(y = "Percent")
-
-# Check for a unit root: Both variables have a unit root
-fred_data %>%
-  features(value, unitroot_ndiffs) %>%
-  kable(format = "html", table.attr = "style='width:30%;' ") %>%
-  kableExtra::kable_styling()
+# plot
+spread <- xts::xts(fred_dataw[,-1], order.by = fred_dataw$date)
+plot(spread, main = "2 year treasury yields  (black) \n10 year treasury yields  (red)", ylab = "Percent", xlab="Month")
 ```
+</center><br>
 
-```{r}
-# Transform variables to be I(0)
-ndata <- fred_dataw %>% dplyr::select(c(FEDFUNDS,PCEPI)) %>%
-  mutate(infl = 1200*log(PCEPI/lag(PCEPI))) %>%              # in percent/month
-  mutate(dinfl = infl - lag(infl,1)) %>%                     # differenced inflation
-  mutate(fedfunds = FEDFUNDS - lag(FEDFUNDS)) %>%            # differenced fedfunds
-  dplyr::select(dinfl, fedfunds) %>% 
-  tidyr::drop_na()
+---
 
-zdata <- as.ts(ndata, start = c(1960, 1), frequency = 12)
 
-tmp <- VARselect(zdata,lag.max=12,type="const")
-p <- tmp$selection[2]
-tmp
+```{r roots}
+# Check for unit roots: both variables I(1)
+# fred_data %>% 
+#   features(value, unitroot_ndiffs) %>% 
+#   kable(format = "html", table.attr = "style='width:30%;' ") %>% 
+#   kableExtra::kable_styling()
 ```
-
-```{r}
-# Observe the plots of the transformed variables
-ndatam <- melt(ndata, "Month")
-ggplot(ndatam, aes(Month, value)) +
-  geom_line() +
-  facet_wrap(~variable, scales = "free", ncol = 2)
-
-# Compare ACF plots before and after transformation
-fred_dataw %>% ACF(FEDFUNDS) %>%
-  autoplot()
-ndata %>% ACF(fedfunds) %>%
-  autoplot()
-```
-
-```{r}
-var.rate <- VAR(zdata,p=p,type="const")
-summary(var.rate)
-```
-
-```{r}
-cat("H0: fedfunds does not cause dinfl,  H1: it does \n")
-grangertest(fedfunds ~ dinfl,order=p,data=zdata)
-```
-
-```{r}
-cat("H0: dinfl does not cause fedfunds,  H1: it does \n")
-grangertest(dinfl ~ fedfunds,order=p,data=zdata)
-```
-
-```{r}
-plot(irf(var.rate, n.ahead = 6, boot = TRUE))
-```
-
 
 <br>
 <h3>Data and Variables</h3>
 <br>
 
-The data used in this analysis was gathered from the Federal Reserve’s online database (FRED), and the time series spans from January 1955 to March 2022. The table below shows a list of the variables used and their attributes.
+The data used in this analysis was gathered from the Federal Reserve’s online database (FRED), and the time series spans from January 1977 to March 2022. The table below shows a list of the variables used and their attributes.
 
 
 ```{r data_table}
 # Define description and units vectors for the table
-desc <- c("Federal Funds Effective Rate","Market Yield on U.S. Treasury Securities at 10-Year Constant Maturity")
+desc <- c("Market Yield on U.S. Treasury Securities at 2-Year Constant Maturity","Market Yield on U.S. Treasury Securities at 10-Year Constant Maturity")
 units <- c("Percent, Not Seasonally Adjusted","Percent, Not Seasonally Adjusted")
 
 # Create dataframe for kable function
@@ -177,17 +117,32 @@ Write about the data and variables here.
 ---
 
 
-```{r fit_models}
-# Fit the models
+```{r selection}
+# test for unit roots
+summary(ur.df(spread$gs2, type = "none", selectlags = "BIC"))
+summary(ur.df(spread$gs10, type = "none", selectlags = "BIC"))
+
+# test for cointegration
+coint.tr <- lm(spread$gs2 ~ spread$gs10)
+summary(coint.tr)
+
+# examine residuals for cointegration: residuals I(0)
+coint.tr.resids <- coint.tr$residuals
+summary(ur.df(coint.tr.resids, type = "drift", selectlags = "BIC"))
 ```
 
 
 <br>
-<h3>Models</h3>
+<h3>Model Selection</h3>
 <br>
 
 
-Talk about the models here.
+2 ADF tests on variables: accept the null that both have unit roots and are I(1) time series
+
+Cointegration test: reject the null that there is a unit root in the residuals, residuals I(0), the two rates are cointegrated
+
+gs10 is about 1.12% higher than gs2, on average
+
 
 <br>
 <center>$\pi^{12}_{t}−\pi_{t−12}=\phi+\beta(B)\Delta\pi_{t−12}+\gamma(B)u_{t−12}+\varepsilon_t$</center>
@@ -202,21 +157,23 @@ Keep talking about the models here ($\bar{\pi}$).
 ---
 
 
-```{r forecast_accuracy}
-# Create the forecast using the combination model
+```{r vecm}
+# estimate a VECM model with p-1 lags
+p.tr <- VARselect(spread[,c(2,1)],lag.max=20,type="const")$selection[2] - 1
+spread.vecm <- VECM(spread[,c(2,1)],lag=p.tr,r=1,include="const",estim="ML",LRinclude="none")
+summary(spread.vecm)
 ```
 
 
 <br>
-<h3>Estimation and Results</h3>
+<h3>Findings</h3>
 <br>
 
 Write about the results here.
 
 
-```{r forecast_plot, fig.align='center'}
-#Plot the estimated models
-
+```{r irf}
+plot(irf(spread.vecm, n.ahead = 12))
 ```
 <br>
 
@@ -228,20 +185,13 @@ Keep writing about the results with latek maybe.
 <center>where, $p_t=100e_t/y_t$</center>
 
 
-```{r insample_acc}
-# Create a table to display in-sample accuracy between models
-
+```{r fevd}
+plot(fevd(spread.vecm, n.ahead = 12))
 ```
 <br>
 
 Results and tables etc.
 
-
-```{r outsample_acc}
-# Create a table to display out-of-sample accuracy between models
-
-```
-<br>
 
 Closing findings.
 
