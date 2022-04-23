@@ -1,5 +1,5 @@
 ---
-title: "VECM approach to interest rates"
+title: "VECM: Treasury Yields and Spreads"
 subtitle: "Do short term rates lead long term rates?"
 author: "Sean Cannon"
 date: "`r format(Sys.Date(),'%B %d, %Y')`"
@@ -20,10 +20,7 @@ output:
 ```{r setup, include=FALSE}
 rm(list=ls())
 graphics.off()
-# ECHO, MESSAGE, AND WARNING = FALSE for final knit
-knitr::opts_chunk$set(echo = TRUE,
-                      message = TRUE,
-                      warning = TRUE)
+knitr::opts_chunk$set()
 ```
 
 ```{r packages, message=FALSE, warning=FALSE}
@@ -41,12 +38,8 @@ require(stargazer)
 require(tsDyn)
 ```
 
-<br>
-<h3>Abstract</h3>
-<br>
 
-Write the abstract here. Include at the end: The report is also posted online [here](https://scannon2k.github.io/projects.html).
-
+A copy of this report is posted online [here](https://scannon2k.github.io/projects.html).
 
 ---
 
@@ -55,8 +48,8 @@ Write the abstract here. Include at the end: The report is also posted online [h
 <h3>Introduction</h3>
 <br>
 
-Write the introduction here.
-<center>
+Interest rates are a key macroeconomic variable and are closely watched by investors and economists. Treasury debt instruments are generally seen as "risk free" and are frequently used as a comparison for valuing other investments. In addition, the treasury yield curve is used as an overall indicator of economic outlook, and the spreads between debt instruments of varying maturity are closely tracked. This analysis focuses on the relationship between the 2 and 10 year treasury note yield. Specifically, how do shocks to short term interest rates affect long term rates? This paper seeks to investigate the dynamic relationship between note yields.
+
 ```{r data}
 # Vector of variables to be gathered:
 vars <- c("GS2","GS10")
@@ -78,7 +71,9 @@ fred_dataw <- fred_data %>%
 spread <- xts::xts(fred_dataw[,-1], order.by = fred_dataw$date)
 plot(spread, main = "2 year treasury yields  (black) \n10 year treasury yields  (red)", ylab = "Percent", xlab="Month")
 ```
-</center><br>
+<br><br>
+
+Above is a chart of the yields on 2 and 10 year treasury notes from 1977 to the present. The two rates are highly correlated, and follow the same general shifts over time. Times when the ten year note yield crosses over the two year yield are an inversion of the yield curve, when rates for short term debt are higher than long term. Since yield curve inversions go against basic time value of money principles, this is generally seen as an indicator of an economic downturn. Understanding the dynamics between the two rates can be useful in predicting the future spread between debt of varying yield to maturity.
 
 ---
 
@@ -112,23 +107,23 @@ kbl(table_data, col.names = c("Variables", "Description", "Units"), align = "lll
 ```
 <br>
 
-Write about the data and variables here.
+<code>GS2</code> and <code>GS10</code> are monthly measures of the yield on 2 and 10 year treasury securities, respectively. They are both measured in percent and are not seasonally adjusted. They track the interest rate over time, and the difference between them is the spread between the 2 year and 10 year treasury notes. The variables are both influenced by the same macroeconomic factors, and therefore exhibit a high degree of correlation.
 
 ---
 
 
-```{r selection}
-# test for unit roots
-summary(ur.df(spread$gs2, type = "none", selectlags = "BIC"))
-summary(ur.df(spread$gs10, type = "none", selectlags = "BIC"))
-
-# test for cointegration
-coint.tr <- lm(spread$gs2 ~ spread$gs10)
-summary(coint.tr)
-
-# examine residuals for cointegration: residuals I(0)
-coint.tr.resids <- coint.tr$residuals
-summary(ur.df(coint.tr.resids, type = "drift", selectlags = "BIC"))
+```{r selection, echo=FALSE, message=FALSE}
+# # test for unit roots
+# summary(ur.df(spread$gs2, type = "none", selectlags = "BIC"))
+# summary(ur.df(spread$gs10, type = "none", selectlags = "BIC"))
+# 
+# # test for cointegration
+# coint.tr <- lm(spread$gs2 ~ spread$gs10)
+# summary(coint.tr)
+# 
+# # examine residuals for cointegration: residuals I(0)
+# coint.tr.resids <- coint.tr$residuals
+# summary(ur.df(coint.tr.resids, type = "drift", selectlags = "BIC"))
 ```
 
 
@@ -136,32 +131,37 @@ summary(ur.df(coint.tr.resids, type = "drift", selectlags = "BIC"))
 <h3>Model Selection</h3>
 <br>
 
-
-2 ADF tests on variables: accept the null that both have unit roots and are I(1) time series
-
-Cointegration test: reject the null that there is a unit root in the residuals, residuals I(0), the two rates are cointegrated
-
-gs10 is about 1.12% higher than gs2, on average
-
+Prior to selecting a model, it's important to test the order of integration of each time series. If <code>GS2</code> or <code>GS10</code> contain a unit root, they are non-stationary processes. If the variables contain a random walk component, they usually require differencing to be made stationary before performing any time series analysis. An Augmented Dickey-Fuller test can be used to test whether <code>GS2</code> or <code>GS10</code> contain a unit root.
 
 <br>
-<center>$\pi^{12}_{t}−\pi_{t−12}=\phi+\beta(B)\Delta\pi_{t−12}+\gamma(B)u_{t−12}+\varepsilon_t$</center>
+<center>$\text{Augmented Dickey-Fuller Test}$</center><br>
+<center>$H_0:\text{There is a unit root}$</center>
+<center>$H_a:\text{There is no unit root}$</center>
 <br>
 
-Keep talking about the models here ($\bar{\pi}$).
+For both variables, the null of the Augmented Dickey-Fuller test is accepted and the time series are concluded to have a unit root. <code>GS2</code> and <code>GS10</code> are integrated of order 1. To further narrow down the correct model, the variables should be tested for cointegration. Specifically, two random variables are said to be cointegrated if there exists a linear combination of the two I(1) variables is integrated of order 0. To test, estimate the following regression and test if the residuals are distributed as I(0).
 
 <br>
-<center>$me=(m1+m2+m3+m4)/4$</center>
+<center>$\text{Estimate: }y_t=\alpha+\beta x_{t}+\epsilon_{t}$</center>
 <br>
+<center>$\text{Test if: }\hat{\varepsilon}_t\sim \text{I(0)}$</center>
+<br>
+
+After estimating and testing the residuals using another Augmented Dickey-Fuller test, the assumption that there is a unit root in the residuals is rejected. Therefore, the residuals are distributed as I(0), and the two interest rates are cointegrated. This is in line with economic theory of interest rates. Moreover, a Vector Error Correction Model (VECM) is the correct model for this analysis.
+
+<br>
+<center>$\text{Vector Error Correcton Model}$</center>
+<br>
+
+The cointegrating vector equation estimate indicates that the yield on 10 year treasury notes is about 1.12% higher than two year treasury notes, on average. This makes intuitive sense as it is expected that securities with a longer yield to maturity will require a higher rate of return.
 
 ---
 
 
-```{r vecm}
+```{r vecm, echo=FALSE, message=FALSE}
 # estimate a VECM model with p-1 lags
 p.tr <- VARselect(spread[,c(2,1)],lag.max=20,type="const")$selection[2] - 1
 spread.vecm <- VECM(spread[,c(2,1)],lag=p.tr,r=1,include="const",estim="ML",LRinclude="none")
-summary(spread.vecm)
 ```
 
 
@@ -169,31 +169,25 @@ summary(spread.vecm)
 <h3>Findings</h3>
 <br>
 
-Write about the results here.
+The impulse response function illustrates the dynamic relationship between two variables estimated by VEC. First, the model is run out to steady state, then one of the variables is given a random shock. The top impulse response function shows the result of issuing a random shock to the <code>GS10</code> variable. <code>GS2</code>, the two year note yield, is quick to adjust to the elevated rate of the 10 year treasury note. Economically, this would result in a narrowing of the spread between the two notes in the short term.
+
+The bottom impulse response function however shows that when <code>GS2</code> is given a random shock, <code>GS10</code> does not react. Even 6 months following the random shock, the spread between the 2 and 10 year securities is permanently affected by the movement in the short term rate.
 
 
 ```{r irf}
 plot(irf(spread.vecm, n.ahead = 12))
 ```
-<br>
+<br><br>
 
-Keep writing about the results with latek maybe.
+Similarly, the forecast error variance decomposition (FEVD) shows that the variance in the 10 year treasury yield is independent of the 2 year yield. However, a small portion of the variation in the two year note over time can be explained by the ten year note. So although <code>GS2</code> and <code>GS10</code> are highly correlated, the variation in the rates seem to be mostly independent of one another.
 
 <br>
-<center>$MAPE = mean(\left| p_t \right|)$</center>
-<br>
-<center>where, $p_t=100e_t/y_t$</center>
 
 
 ```{r fevd}
 plot(fevd(spread.vecm, n.ahead = 12))
 ```
 <br>
-
-Results and tables etc.
-
-
-Closing findings.
 
 
 ---
@@ -203,7 +197,7 @@ Closing findings.
 <h3>Conclusion</h3>
 <br>
 
-Write about the conclusion here.
+Overall, this analysis indicates that the two year treasury note yield reacts to shocks in the ten year treasury yield. More analysis is required to determine whether or not short term rates lead long term rates. These findings imply that when long term rates change, short term rates will react to close the spread. However, the reverse does not appear to be true.
 
 
 ---
